@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Generated previews
+preview_*.png
+epaper_*.png
+
+# Cache
+.cache/
+.pytest_cache/
+
+# Assets not for git
+src/birdviz/assets/birds/*.jpg
+src/birdviz/assets/birds/*.png

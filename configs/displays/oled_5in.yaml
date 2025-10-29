@@ -1,0 +1,20 @@
+# Generic 5" OLED (placeholder)
+api_base: "http://birdnet.local:8756"
+endpoint: "/api/latest_distinct"
+max_species: 8
+poll_seconds: 60
+
+display:
+  backend: "stdout"  # replace with a real OLED driver later
+  width: 800
+  height: 480
+  rotate: 0
+
+ui:
+  title: "Backyard Birds"
+  show_scientific: false
+  line_spacing_px: 4
+
+fonts:
+  regular: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+  size_px: 28
