@@ -76,7 +76,7 @@ You should see JSON output of recent detections.
 
 ---
 
-### 2️⃣  On your display device (Pi) a.k.a. `birdscreen.local`
+### 2️⃣  On your display device (Pi) a.k.a. `birdviz.local`
 
 This is your **display computer**.
 
