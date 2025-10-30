@@ -46,8 +46,8 @@ sudo apt-get update
 sudo apt-get install -y python3-venv python3-pip
 sudo useradd -r -s /usr/sbin/nologin birdapi || true
 sudo mkdir -p /opt/birdnet-api/app
-python3 -m venv /opt/birdnet-api/venv
-/opt/birdnet-api/venv/bin/pip install flask flask-cors
+sudo python3 -m venv /opt/birdnet-api/venv
+sudo /opt/birdnet-api/venv/bin/pip install flask flask-cors
 ```
 
 #### Copy the API files
