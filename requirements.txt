@@ -1,6 +1,0 @@
-flask
-flask-cors
-pillow
-pyyaml
-requests
-pygame
