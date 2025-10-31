@@ -1,231 +1,184 @@
-# 🪶 BirdViz  
-*A local, real-time display for BirdNET-Pi detections*
+# 🪶 BirdNET-Pi Sidecar
+### A lightweight, read-only live API and dashboard for [BirdNET-Pi](https://github.com/Nachtzuster/BirdNET-Pi)
 
-**BirdViz** is an open-source companion project for [BirdNET-Pi](https://github.com/Nachtzuster/BirdNET-Pi).  
-It runs on a second computer (like a Raspberry Pi 5) connected to a display—showing live bird detections from your BirdNET-Pi installation.
+This **Sidecar** adds a fast, real-time JSON API and browser dashboard to your existing BirdNET-Pi installation — without modifying BirdNET-Pi itself.
 
-The goal: create a beautiful, low-latency, fully offline visualization that turns your backyard BirdNET setup into a living, interactive display.
+It reads BirdNET-Pi’s detections database in **read-only** mode and provides:
+
+- `/recentunique` → the latest **unique species** detections (customizable limit)
+- `/events` → an instant live stream of detections (Server-Sent Events)
+- `/last`, `/debug` → simple JSON endpoints for automation and diagnostics
+- a lightweight, self-hosted **dashboard** at  
+  👉 [http://birdnet.local:8090/](http://birdnet.local:8090/)
 
 ---
 
 ## ✨ Features
 
-- **Instant updates** from your local BirdNET-Pi (`birdnet.local`)  
-- **No cloud dependency** — runs entirely on your LAN  
-- **Supports multiple displays:** OLED, e-paper, and touchscreen panels  
-- **Interactive UI** — tap a species to view a full-screen image of that bird  
-- **Simple to extend** — add new visualization modes or displays easily  
-- **Open-source & privacy-respecting**  
+✅ Instantly updates when new detections occur (no page refresh)  
+✅ Works alongside BirdNET-Pi — **no modification** to BirdNET-Pi required  
+✅ Starts automatically on boot with `systemd`  
+✅ Returns the **last N unique species**, sorted newest → oldest  
+✅ Clean JSON APIs for use by other devices or scripts on your network  
 
 ---
 
-## 🧭 System overview
+## 🧩 Requirements
 
-```text
-+---------------------------+        +-----------------------------+
-|  birdnet.local            |        |  birdscreen.local           |
-|  -----------------------  |        |  -------------------------  |
-|  BirdNET-Pi (Raspberry)   |  --->  |  Display Pi (Raspberry)     |
-|  birds.db (detections)    |        |  Fetch JSON via /api/       |
-|  birdnet-api (Flask)      |        |  Render species list        |
-+---------------------------+        +-----------------------------+
-```
+- Raspberry Pi (tested on Pi 5)
+- Existing [BirdNET-Pi](https://github.com/Nachtzuster/BirdNET-Pi) installation
+- Python 3 (included with Raspberry Pi OS)
+- BirdNET-Pi database (default path):  
+  `~/BirdNET-Pi/scripts/birds.db`
+
+> 🧠 **Note:** If your system uses a different username (not `pi`),  
+> replace `/home/pi/...` with your actual username in all steps below.
 
 ---
 
-## ⚙️ Installation
+## ⚙️ 1. Create the sidecar environment
 
-### 1️⃣  On `birdnet.local`
+SSH into your BirdNET-Pi machine:
 
-This is your existing BirdNET-Pi system.  
-We’ll add a lightweight **read-only JSON API** to expose detections.
-
-#### Install dependencies
 ```bash
-sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip
-sudo useradd -r -s /usr/sbin/nologin birdapi || true
-sudo mkdir -p /opt/birdnet-api/app
-sudo python3 -m venv /opt/birdnet-api/venv
-sudo /opt/birdnet-api/venv/bin/pip install flask flask-cors
-```
+ssh pi@birdnet.local
 
-#### Copy the API files
-From this repository:
-```
-birdviz/src/birdnet_api/app.py
-systemd/birdnet-api.service
-```
 
-Edit `birdnet-api.service` if your `birds.db` path differs  
-(default: `/home/birdnet/BirdNET-Pi/scripts/birds.db`).
+Create and configure a Python environment:
 
-Install and enable:
-```bash
-sudo cp systemd/birdnet-api.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now birdnet-api
-```
+python3 -m venv ~/birdnet-sidecar
+~/birdnet-sidecar/bin/pip install --upgrade pip
+~/birdnet-sidecar/bin/pip install flask==3.0.0
 
-#### Test the API
-Visit in your browser:
-```
-http://birdnet.local:8756/api/latest_distinct?limit=10
-```
-You should see JSON output of recent detections.
+📁 2. Add the sidecar app
 
----
+Create the app directory:
 
-### 2️⃣  On your display device (Pi) a.k.a. `birdviz.local`
+mkdir -p ~/birdnet-sidecar/app
 
-This is your **display computer**.
 
-#### Clone and install
-```bash
-cd /opt
-sudo git clone https://github.com/<yourusername>/birdviz.git
-cd birdviz
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-pil fonts-dejavu-core
-pip3 install -r requirements.txt
-```
+Download the unique sidecar file:
+👉 Download sidecar.py
 
-#### Choose your display
-Default: **Waveshare 11.9" OLED Touchscreen (vertical orientation)**
+(If you’re cloning this repo directly, the file is already included.)
 
-Copy its config:
-```bash
-cp configs/displays/waveshare_11in9.yaml configs/birdviz.yaml
-```
+Upload it to the Pi (if needed):
 
-Edit it if needed (title, number of species, etc.).
+scp sidecar.py pi@birdnet.local:~/birdnet-sidecar/app/sidecar.py
 
-#### Run BirdViz
-```bash
-python3 -m birdviz.main
-```
+🧾 3. Create a user-level systemd service
 
-You should see a vertical list of the latest species.  
-If using the touchscreen, you can tap a species to show its photo.
+This ensures the sidecar starts automatically when the Pi boots.
 
-To run automatically:
-```bash
-sudo cp systemd/birdviz.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now birdviz
-```
+mkdir -p ~/.config/systemd/user
 
----
+cat > ~/.config/systemd/user/birdnet-sidecar.service <<'EOF'
+[Unit]
+Description=BirdNET-Pi Sidecar (read-only API + live dashboard)
+After=network-online.target
 
-## 🖥️ Supported displays
+[Service]
+WorkingDirectory=%h/birdnet-sidecar/app
+ExecStart=%h/birdnet-sidecar/bin/python %h/birdnet-sidecar/app/sidecar.py
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=1
 
-| Display | Type | Interaction | Status |
-|----------|------|-------------|---------|
-| [Waveshare 11.9" OLED Touchscreen](docs/displays/waveshare_11in9.md) | Touch | Tap for photo | ✅ Default |
-| [Waveshare 7.3" e-Paper](docs/displays/epaper_7in3.md) | Static | None | 🚧 Planned |
-| 5" OLED (SSD1306) | Static | None | 🚧 Planned |
+[Install]
+WantedBy=default.target
+EOF
 
-Each display is defined by:
-- A **driver module** in `src/birdviz/drivers/`
-- A **YAML config** in `configs/displays/`
-- A **docs page** in `docs/displays/`
+systemctl --user daemon-reload
+systemctl --user enable --now birdnet-sidecar.service
 
----
+🧪 4. Verify installation
 
-## 📱 Default display: Waveshare 11.9" OLED touchscreen
+Check that the service is running:
 
-### Orientation
-Vertical (portrait)
+systemctl --user --no-pager --full status birdnet-sidecar.service
 
-### Behavior
-1. **List view**  
-   - Shows the latest distinct species detected  
-   - Updates every `poll_seconds` (default: 60 s)
 
-2. **Tap interaction**  
-   - Tap any species → shows full-screen photo and name  
-   - Tap again → returns to list
+Test the API locally:
 
-### Data source
-All data comes directly from your `birdnet.local` via:
-```
-/api/latest_distinct
-```
+curl -s http://127.0.0.1:8090/debug | jq .
+curl -s http://127.0.0.1:8090/recentunique?limit=10 | jq .
 
-### Assets
-Images are loaded from:
-```
-src/birdviz/assets/birds/
-```
-You can store JPEGs named by species, e.g.:
-```
-Northern Cardinal.jpg
-Blue Jay.jpg
-```
-If not found locally, BirdViz falls back to a neutral placeholder.
 
----
+If you see valid JSON (bird names, timestamps, etc.), it’s working 🎉
 
-## 🧩 Configuration overview
+🖥️ 5. View the live dashboard
 
-| Key | Description | Example |
-|-----|--------------|----------|
-| `api_base` | Base URL for BirdNET-Pi API | `http://birdnet.local:8756` |
-| `endpoint` | API endpoint to use | `/api/latest_distinct` |
-| `max_species` | Number of species to display | `10` |
-| `poll_seconds` | Refresh interval in seconds | `60` |
-| `display.backend` | Which driver to use | `"waveshare_11in9"` |
-| `display.width` / `height` | Pixel resolution | `400 × 1280` |
-| `ui.title` | Title text at top of list | `"Backyard Birds"` |
-| `ui.show_scientific` | Show Latin name | `false` |
-| `fonts.regular` | Path to system font | `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` |
+Visit this URL in your browser:
 
----
+👉 http://birdnet.local:8090/
 
-## 📷 Example screenshots
+You’ll see the latest 10 unique species, updating instantly as new detections happen.
+Each time a species is re-detected, it jumps to the top of the list.
 
-| List view | Species view |
-|------------|---------------|
-| *(mock)* | *(mock)* |
+🔢 6. Adjust how many detections are shown
 
----
+Change the number of results returned by adding a limit parameter:
 
-## 🪪 License
+http://birdnet.local:8090/recentunique?limit=25
 
-MIT License © 2025
 
----
+Or modify the dashboard to load 25 instead of 10 on startup by editing the fetch line inside sidecar.py:
 
-## 🗂️ Repository structure
+fetch('/recentunique?limit=25',{cache:'no-store'})
 
-```text
-birdviz/
-├── src/
-│   ├── birdviz/
-│   │   ├── main.py           # main loop
-│   │   ├── data.py           # BirdNET-Pi API client
-│   │   ├── render.py         # layout + drawing
-│   │   ├── ui_touch.py       # touchscreen interaction
-│   │   ├── drivers/          # display backends
-│   │   └── assets/           # local bird images
-│   └── birdnet_api/          # local API service
-├── configs/
-│   ├── birdviz.yaml
-│   └── displays/
-│       ├── waveshare_11in9.yaml
-│       ├── epaper_7in3.yaml
-│       └── oled_5in.yaml
-├── systemd/
-│   ├── birdnet-api.service
-│   └── birdviz.service
-├── docs/
-│   ├── setup_birdnet.md
-│   ├── setup_birdviz.md
-│   └── displays/
-│       ├── waveshare_11in9.md
-│       ├── epaper_7in3.md
-│       └── oled_5in.md
-├── LICENSE
-├── README.md
-└── requirements.txt
-```
+🔍 7. API Endpoints
+Endpoint	Description	Example
+/last	Most recent detection	/last
+/recentunique?limit=N	Last N unique species	/recentunique?limit=25
+/events	Live Server-Sent Events stream	/events
+/debug	Diagnostic info	/debug
+🪶 8. Maintenance and troubleshooting
+
+Restart the service after edits:
+
+systemctl --user restart birdnet-sidecar.service
+
+
+View logs in real time:
+
+journalctl --user -u birdnet-sidecar.service -f
+
+
+Run the app manually (to see live output):
+
+cd ~/birdnet-sidecar/app
+~/birdnet-sidecar/bin/python sidecar.py
+
+
+If it prints:
+
+ * Running on http://0.0.0.0:8090
+
+
+you’re good to go!
+
+💡 Notes
+
+The sidecar never writes to BirdNET-Pi’s database — it’s read-only.
+
+Uses lightweight polling (no heavy dependencies like watchdog).
+
+Adjust DB_PATH in the script if your birds.db lives elsewhere.
+
+Default: ~/BirdNET-Pi/scripts/birds.db
+
+🧱 Folder structure
+/home/pi/
+ ├── BirdNET-Pi/
+ │   └── scripts/birds.db
+ └── birdnet-sidecar/
+     ├── app/
+     │   └── sidecar.py
+     └── bin/
+
+📄 License
+
+MIT License — use freely and modify as you like.
+
+Enjoy your live BirdNET dashboard!
+It updates instantly, stays lightweight, and gives you a real-time window into the birdlife in your backyard. 🌿🐦
