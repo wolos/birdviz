@@ -195,9 +195,8 @@ def debug():
 
 @app.get("/")
 def index():
-    """Main dashboard page with live updating list."""
+    """Main dashboard page with live updating list (clean style)."""
     return """<!doctype html>
-<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -253,7 +252,7 @@ def index():
       text-overflow: ellipsis;
       font-size: var(--fs);       /* one size for all rows */
     }
-    /* Optional subtle fade newest→oldest (you can remove this if you want pure white) */
+    /* Subtle fade newest→oldest */
     .item[data-rank="0"] { color: var(--fg); }
     .item[data-rank="1"] { color: color-mix(in oklab, var(--fg) 92%, var(--muted)); }
     .item[data-rank="2"] { color: color-mix(in oklab, var(--fg) 86%, var(--muted)); }
@@ -275,15 +274,24 @@ def index():
   </div>
 
   <script>
-  // API on the same sidecar (your README shows /recentunique is available on :8090)
-  const DATA_URL = "/recentunique?limit=10";   // adjust limit if you wish
+  const DATA_URL = "/recentunique?limit=10";
   const MAX_ITEMS = 10;
+
+  // permissive JSON loader (works even if content-type is text/plain)
+  async function loadJson(res){
+    try { return await res.clone().json(); }
+    catch(_) {
+      try { return JSON.parse(await res.text()); }
+      catch(_) { return null; }
+    }
+  }
 
   function transform(raw){
     if(!raw) return [];
     if(Array.isArray(raw) && typeof raw[0]==="string") return raw;
     if(Array.isArray(raw) && typeof raw[0]==="object"){
-      const k = ["species","species_name","name","label"].find(x => raw[0] && x in raw[0]);
+      const k = ["display_name","species","species_name","name","label"]
+        .find(x => raw[0] && x in raw[0]);
       if(k) return raw.map(o => o[k]);
     }
     if(typeof raw==="object"){
@@ -322,36 +330,62 @@ def index():
       li.className = "item";
       li.dataset.rank = String(i);
       li.style.fontVariationSettings = `"wght" ${item.weight}`;
-      li.style.fontWeight = item.weight;   // helps engines that reflect to var axis
+      li.style.fontWeight = item.weight;   // some engines reflect to var axis
       li.textContent = item.text;
       targetEl.appendChild(li);
     });
   }
 
+  function uniqueOrder(names){
+    const seen = new Set(); const out = [];
+    for(const n of names){
+      if(!n || seen.has(n)) continue;
+      seen.add(n); out.push(n);
+      if(out.length >= MAX_ITEMS) break;
+    }
+    return out;
+  }
+
+  async function initialRender(listEl){
+    const res = await fetch(DATA_URL, { cache: "no-store" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const raw = await loadJson(res);
+    const names = transform(raw);
+    const uniq = uniqueOrder(names);
+    if(!uniq.length) return;
+    const items = uniq.map((text, i, arr) => ({ text, weight: wght(i, arr.length) }));
+    const fs = await computeFontSizeToFill(listEl, items);
+    document.documentElement.style.setProperty("--fs", `${fs}px`);
+    render(listEl, items);
+  }
+
+  function liveUpdates(listEl){
+    const es = new EventSource("/events");
+    es.addEventListener("append", async (e) => {
+      try{
+        const d = JSON.parse(e.data);
+        const name = d.display_name || d.species || d.species_name || d.name || d.label || d.sci_name || "";
+        if(!name) return;
+        // build current list of names
+        const current = Array.from(listEl.querySelectorAll(".item")).map(li => li.textContent);
+        // move to top, dedupe, trim
+        const next = [name, ...current.filter(n => n !== name)].slice(0, MAX_ITEMS);
+        const items = next.map((text, i, arr) => ({ text, weight: wght(i, arr.length) }));
+        const fs = await computeFontSizeToFill(listEl, items);
+        document.documentElement.style.setProperty("--fs", `${fs}px`);
+        render(listEl, items);
+      }catch(_){}
+    });
+    es.onerror = () => {}; // keep silent
+  }
+
   (async function init(){
     const listEl = document.getElementById("list");
     try {
-      const res = await fetch(DATA_URL, { cache: "no-store" });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const ctype = res.headers.get("content-type") || "";
-      const raw = ctype.includes("application/json") ? await res.json() : null;
-      const names = transform(raw);
-
-      // unique in order, then limit
-      const seen = new Set(), unique = [];
-      for(const n of names){
-        if(!n || seen.has(n)) continue;
-        seen.add(n); unique.push(n);
-        if(unique.length >= MAX_ITEMS) break;
-      }
-      if(!unique.length) return;   // blank if nothing / error
-
-      const items = unique.map((text, i, arr) => ({ text, weight: wght(i, arr.length) }));
-      const fs = await computeFontSizeToFill(listEl, items);
-      document.documentElement.style.setProperty("--fs", `${fs}px`);
-      render(listEl, items);
+      await initialRender(listEl);
+      liveUpdates(listEl);
     } catch (e) {
-      console.error(e);            // remains blank by design
+      console.error(e); // page stays blank on error per your spec
     }
   })();
   </script>
