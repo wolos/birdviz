@@ -197,66 +197,167 @@ def debug():
 def index():
     """Main dashboard page with live updating list."""
     return """<!doctype html>
-<meta charset='utf-8'>
-<title>BirdNET Live</title>
-<style>
-body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,Arial;max-width:640px;margin:40px auto;padding:0 16px}
-h1{font-size:20px;margin-bottom:10px}
-ul{list-style:none;padding:0;margin:0}
-li{border-bottom:1px solid #ddd;padding:8px 0}
-.time{color:#666;font-size:13px}
-.conf{float:right;color:#555}
-</style>
-<h1>BirdNET Live — Last 10 Unique Species</h1>
-<ul id='list'><li>Loading…</li></ul>
-<script>
-const list=document.getElementById('list');
-const MAX_ITEMS_JS=100;
-const itemsBySci=new Map();
-function liFor(d){
-  const li=document.createElement('li');
-  li.dataset.sci=(d.sci_name||'').toLowerCase();
-  li.innerHTML=`<span class='name'>${d.display_name||'(unknown)'} </span>
-     <span class='conf'>${(+d.confidence||0).toFixed(2)}</span>
-     <div class='time'>${d.seen_local||''}</div>`;
-  return li;
-}
-function renderUnique(arr){
-  list.innerHTML='';
-  itemsBySci.clear();
-  for(const d of arr){
-    const key=(d.sci_name||'').toLowerCase();
-    if(!key||itemsBySci.has(key)) continue;
-    const li=liFor(d);
-    itemsBySci.set(key,li);
-    list.appendChild(li);
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BirdNET — Clean</title>
+
+  <!-- Roboto Flex (variable weight) -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --fs: 48px;                 /* computed at runtime to fit the longest name */
+      --row-gap: 0.35em;
+      --pad: clamp(12px, 4vw, 28px);
+      --bg: #0c0f10;
+      --fg: #e9eef2;
+      --muted: #6d7b86;
+      --maxw: 1200px;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Roboto Flex", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      font-optical-sizing: auto;
+    }
+    .wrap {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: var(--pad);
+    }
+    .panel {
+      width: min(95vw, var(--maxw));
+      display: grid;
+      align-content: start;
+      gap: .5rem;
+    }
+    /* Pure list — no title/date/time/confidence anywhere */
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: var(--row-gap);
+    }
+    .item {
+      line-height: 1.08;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: var(--fs);       /* one size for all rows */
+    }
+    /* Optional subtle fade newest→oldest (you can remove this if you want pure white) */
+    .item[data-rank="0"] { color: var(--fg); }
+    .item[data-rank="1"] { color: color-mix(in oklab, var(--fg) 92%, var(--muted)); }
+    .item[data-rank="2"] { color: color-mix(in oklab, var(--fg) 86%, var(--muted)); }
+    .item[data-rank="3"] { color: color-mix(in oklab, var(--fg) 80%, var(--muted)); }
+    .item[data-rank="4"] { color: color-mix(in oklab, var(--fg) 74%, var(--muted)); }
+    .item[data-rank="5"] { color: color-mix(in oklab, var(--fg) 68%, var(--muted)); }
+    .item[data-rank="6"] { color: color-mix(in oklab, var(--fg) 62%, var(--muted)); }
+    .item[data-rank="7"] { color: color-mix(in oklab, var(--fg) 56%, var(--muted)); }
+    .item[data-rank="8"] { color: color-mix(in oklab, var(--fg) 50%, var(--muted)); }
+    .item[data-rank="9"] { color: color-mix(in oklab, var(--fg) 44%, var(--muted)); }
+    @media (max-width: 480px) { :root { --row-gap: 0.28em; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="panel">
+      <ul id="list" class="list" aria-label="Recent Bird Species"></ul>
+    </main>
+  </div>
+
+  <script>
+  // API on the same sidecar (your README shows /recentunique is available on :8090)
+  const DATA_URL = "/recentunique?limit=10";   // adjust limit if you wish
+  const MAX_ITEMS = 10;
+
+  function transform(raw){
+    if(!raw) return [];
+    if(Array.isArray(raw) && typeof raw[0]==="string") return raw;
+    if(Array.isArray(raw) && typeof raw[0]==="object"){
+      const k = ["species","species_name","name","label"].find(x => raw[0] && x in raw[0]);
+      if(k) return raw.map(o => o[k]);
+    }
+    if(typeof raw==="object"){
+      const arrKey = Object.keys(raw).find(k => Array.isArray(raw[k]));
+      if(arrKey) return transform(raw[arrKey]);
+    }
+    return [];
   }
-}
-fetch('/recentunique?limit=10',{cache:'no-store'}).then(r=>r.json()).then(arr=>{renderUnique(arr);});
-const es=new EventSource('/events');
-es.addEventListener('append',e=>{
-  try{
-    const d=JSON.parse(e.data);
-    const key=(d.sci_name||'').toLowerCase();
-    if(!key)return;
-    const li=liFor(d);
-    if(itemsBySci.has(key)){
-      const old=itemsBySci.get(key);
-      if(old&&old.parentNode) old.parentNode.removeChild(old);
+
+  function wght(i, total){
+    if(total <= 1) return 1000;
+    const hi = 1000, lo = 100;
+    const t = i / (total - 1);  // 0=newest(top) .. 1=oldest(bottom)
+    return Math.round(hi + (lo - hi) * t);
+  }
+
+  async function computeFontSizeToFill(containerEl, items){
+    if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch{} }
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const refPx = 100;
+    const width = containerEl.clientWidth || 1;
+    let widest = 1;
+    items.forEach(({text, weight}) => {
+      ctx.font = `${weight} ${refPx}px "Roboto Flex", system-ui, sans-serif`;
+      widest = Math.max(widest, ctx.measureText(text).width);
+    });
+    let fs = (width / widest) * refPx;
+    return Math.max(18, Math.min(fs, 220));
+  }
+
+  function render(targetEl, items){
+    targetEl.innerHTML = "";
+    items.forEach((item, i) => {
+      const li = document.createElement("li");
+      li.className = "item";
+      li.dataset.rank = String(i);
+      li.style.fontVariationSettings = `"wght" ${item.weight}`;
+      li.style.fontWeight = item.weight;   // helps engines that reflect to var axis
+      li.textContent = item.text;
+      targetEl.appendChild(li);
+    });
+  }
+
+  (async function init(){
+    const listEl = document.getElementById("list");
+    try {
+      const res = await fetch(DATA_URL, { cache: "no-store" });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const ctype = res.headers.get("content-type") || "";
+      const raw = ctype.includes("application/json") ? await res.json() : null;
+      const names = transform(raw);
+
+      // unique in order, then limit
+      const seen = new Set(), unique = [];
+      for(const n of names){
+        if(!n || seen.has(n)) continue;
+        seen.add(n); unique.push(n);
+        if(unique.length >= MAX_ITEMS) break;
+      }
+      if(!unique.length) return;   // blank if nothing / error
+
+      const items = unique.map((text, i, arr) => ({ text, weight: wght(i, arr.length) }));
+      const fs = await computeFontSizeToFill(listEl, items);
+      document.documentElement.style.setProperty("--fs", `${fs}px`);
+      render(listEl, items);
+    } catch (e) {
+      console.error(e);            // remains blank by design
     }
-    itemsBySci.set(key,li);
-    list.prepend(li);
-    while(list.children.length>MAX_ITEMS_JS){
-      const last=list.lastElementChild;
-      if(!last)break;
-      const lastKey=(last.dataset.sci||'').toLowerCase();
-      if(itemsBySci.get(lastKey)===last) itemsBySci.delete(lastKey);
-      list.removeChild(last);
-    }
-  }catch(_){}
-});
-es.onerror=()=>{};
-</script>"""
+  })();
+  </script>
+</body>
+</html>
+"""
 
 
 def main():
