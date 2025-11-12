@@ -201,7 +201,7 @@ def index():
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BirdNET — Clean</title>
+  <title>BirdViz</title>
 
   <!-- Roboto Flex (variable weight) -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap" rel="stylesheet">
