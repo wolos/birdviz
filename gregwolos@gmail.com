@@ -61,8 +61,11 @@ if command -v loginctl >/dev/null 2>&1; then
   fi
 fi
 
-echo
-echo "✅ BirdViz Sidecar installed."
-echo "   Dashboard:  http://birdnet.local:8090/"
-echo "   Logs:       journalctl --user -u ${SERVICE_NAME} -f"
-echo "   API test:   curl -s \"http://127.0.0.1:8090/recentunique?limit=10\" | jq .
+cat <<'MSG'
+
+✅ BirdViz Sidecar installed.
+   Dashboard:  http://birdnet.local:8090/
+   Logs:       journalctl --user -u birdnet-sidecar.service -f
+   API test:   curl -s "http://127.0.0.1:8090/recentunique?limit=10" | jq .
+
+MSG
