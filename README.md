@@ -1,4 +1,4 @@
-# BirdViz – BirdNET-Pi Sidecar (Live API + Dashboard)
+# BirdViz – Visualization for BirdNET-Pi
 
 **One‑line install (Raspberry Pi):**
 ```bash
