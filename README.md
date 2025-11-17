@@ -1,5 +1,6 @@
 # BirdViz – Visualization for BirdNET-Pi
-`![alt text](/assets/birdviz.jpg)`
+![alt text](https://github.com/wolos/birdviz/blob/main/assets/birdviz.jpg?raw=true)
+
 
 **One‑line install (Raspberry Pi):**
 ```bash
