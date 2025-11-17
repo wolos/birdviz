@@ -1,7 +1,7 @@
 # BirdViz – Visualization for BirdNET-Pi
 ![alt text](https://github.com/wolos/birdviz/blob/main/assets/birdviz_2.jpg?raw=true)
 
-**ABout**
+**About**
 BirdViz is a typography forward visualization tool that helps you know which birds to watch and listen for in your yard. It leverages tech to promote real observation outside using your ears and eyes.
 
 In real time, BirdViz shows the last 10 unique bird species detected in your yard, accessible from any browser on your local network.
