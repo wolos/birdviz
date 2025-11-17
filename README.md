@@ -1,4 +1,5 @@
 # BirdViz – Visualization for BirdNET-Pi
+`![alt text](/assets/birdviz.jpg)`
 
 **One‑line install (Raspberry Pi):**
 ```bash
